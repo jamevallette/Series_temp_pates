@@ -15,7 +15,7 @@ require(fUnitRoots)
 ## PARTIE 1 ##
 
 # Importation et nettoyage rapide de la serie
-datafile <- "/home/onyxia/work/Series_temp_vin/fabricationdeboissons.csv"
+datafile <- "fabricationdeboissons.csv"
 data <- read.csv(datafile,sep=";", skip=3, header = TRUE)
 
 colnames(data) <- c("Periode", "Indice","Code")
@@ -77,11 +77,16 @@ pacf(coredata(xm_diff))
 #On estime q avec le graphe des acf => on prend q=2 (les lag après sont nuls hormis 1 ou 2 qui dépasse très peu la borne)
 #On estime p avec le graphe des pacf => on peut commencer avec p = 7
 
-#On estime le modèle ARMA sur la serie corrigée : 
-arima702 <- arima(coredata(xm_diff),c(7,0,2))
-Box.test(arima702$residuals, lag=10, type="Ljung-Box", fitdf=5) #test de Ljung-Box
+#On test différent modèle ARMA : 
 
-#test pour plus de lag : 
+#1 - On estime le modèle ARMA(7,2) sur la serie corrigée : 
+arima702 <- arima(coredata(xm_diff),c(7,0,2))
+
+Box.test(arima702$residuals, lag=12, type="Ljung-Box", fitdf=9) #test de Ljung-Box : fitdf = p+q et lag=12 car data mensuelle
+# P-value très forte donc les residus ne sont pas autocorrélés
+
+
+#Fonction de Test d'autocorrelation des résidus pour les lag de 10 à 24 : 
 Qtests <- function(series, k, fitdf=0) {
 pvals <- apply(matrix(1:k), 1, FUN=function(l) {
 pval <- if (l<=fitdf) NA else Box.test(series, lag=l, type="Ljung-Box", fitdf=fitdf)$p.value
@@ -89,11 +94,7 @@ return(c("lag"=l,"pval"=pval))
 })
 return(t(pvals))
 }
-Qtests(arima702$residuals, 24, 9) #tests de LB pour les ordres 1 `a 24
-
-## Test différents ARMA : 
-
-#fonction de test des significativit´es individuelles des coefficients
+#fonction de test des significativités individuelles des coefficients
 signif <- function(estim){
 
 coef <- estim$coef
@@ -102,15 +103,17 @@ t <- coef/se
 pval <- (1-pnorm(abs(t)))*2
 return(rbind(coef,se,pval))
 }
-signif(arima702) #tests de siginificativit´e de l’ARIMA(3,0,2)
 
-##fonction d’affichage des tests pour la sélection du modèle ARIMA
-
+#Rassemblement des commandes pour afficher le modèle ARMA(7,2)
 arima702 <- arima(coredata(xm_diff),c(7,0,2))
 
-Qtests(arima702$residuals, 24, 3)
-signif(arima702) #tests de siginificativit´e de l’ARIMA(3,0,2)
+Qtests(arima702$residuals, 24, 9)
+#On accepte l'hypothèse de non corrélation des résidus
 
+signif(arima702) #tests de siginificativite de l’ARIMA(7,0,2)
+#On remarque que le coeff MA(2) ne rejette pas l'hypothèse de nullité, le modèle est donc mal ajusté
+
+#Comme le modèle ARMA(7,2) n'est pas valide, on va chercher un ARMA(p,q) avec p=< 7 et q=<2
 
 pmax=7
 qmax=2
@@ -118,6 +121,7 @@ qmax=2
 mat <- matrix(NA,nrow=pmax+1,ncol=qmax+1) #matrice vide `a remplir
 rownames(mat) <- paste0("p=",0:pmax) #renomme les lignes
 colnames(mat) <- paste0("q=",0:qmax) #renomme les colonnes
+
 AICs <- mat #matrice des AIC non remplie
 BICs <- mat #matrice des BIC non remplie
 pqs <- expand.grid(0:pmax,0:qmax) #toutes les combinaisons possibles de p et q
@@ -128,14 +132,23 @@ estim <- try(arima(coredata(xm_diff),c(p,0,q),include.mean = F)) #tente d’esti
 AICs[p+1,q+1] <- if (class(estim)=="try-error") NA else estim$aic #assigne l’AIC
 BICs[p+1,q+1] <- if (class(estim)=="try-error") NA else BIC(estim) #assigne le BIC
 }
+#Affichage des résultats : 
 AICs
 AICs==min(AICs)
+
 BICs
 BICs == min(BICs)
-
+# l'ARMA(1,1) sur la série corrigée est donc le modèle qui minimise les critères BIC et AIC
+#On estime donc le modèle ARMA(1,1) sur la série corrigée: 
 arima101 <- arima(coredata(xm_diff),c(1,0,1))
 
+Qtests(arima101$residuals, 24, 2)
+# On accepte bien H0  qui est la non autocorrélation des résidus
 
+signif(arima101) #tests de siginificativite de l’ARIMA(1,0,1)
+#On rejette l'hypothèse de nullité pour AR(1) et MA(1) donc le modèle est correctement ajusté
+
+#Calcul du R² ajusté de ce modèle : 
 adj_r2 <- function(model, data){
   # Somme des résidus au carré
   ss_res <- sum(model$residuals^2)
@@ -157,12 +170,35 @@ adj_r2 <- function(model, data){
 }
 adj_r2(arima101, coredata(xm_diff))
 
+#Grape des résidus du modèle ARMA(1,1) de la série corrigée: 
 
-dev.off() #r´einitialise les param`etres graphiques
+dev.off() #réinitialise les paramétres graphiques
 plot(arima101$residuals)
 
+#On va essayer les modèles ARMA(2,1), ARMA(1,2) pour s'assurer qu'on aurait pas un modèle plus complexe et détailler qui fonctionnerait  
+
+# 1 - ARMA(2,1)
+arima201 <- arima(coredata(xm_diff),c(2,0,1))
+
+Qtests(arima201$residuals, 24, 3)
+# On accepte bien H0  qui est la non autocorrélation des résidus
+
+signif(arima201) #tests de siginificativite de l’ARIMA(2,0,1)
+#On ne rejette pas l'hypothèse de nullité pour AR(2) donc le modèle n'est pas correctement ajusté
 
 
+# 2 - ARMA(1,2)
+
+arima102 <- arima(coredata(xm_diff),c(1,0,2))
+
+Qtests(arima102$residuals, 24, 3)
+# On accepte bien H0  qui est la non autocorrélation des résidus
+
+signif(arima102) #tests de siginificativite de l’ARIMA(1,0,2)
+#On ne rejette pas l'hypothèse de nullité pour MA(2) donc le modèle n'est pas correctement ajusté
+
+### On conserve donc le modèle ARMA(1,1) sur la série différenciée
+### Cela revient à faire un modèle ARIMA(1,1,1) sur la série initiale
 
 # Rechargement de la série source
 T <- length(xm_source)
