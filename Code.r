@@ -75,5 +75,42 @@ pacf(coredata(xm_diff))
 #On estime p avec le graphe des pacf => on peut commencer avec p = 7
 
 #On estime le modèle ARMA sur la serie corrigée : 
-arima(coredata(xm_diff),c(7,0,2))
+arima702 <- arima(coredata(xm_diff),c(7,0,2))
+Box.test(arima702$residuals, lag=10, type="Ljung-Box", fitdf=5) #test de Ljung-Box
 
+#test pour plus de lag : 
+Qtests <- function(series, k, fitdf=0) {
+pvals <- apply(matrix(1:k), 1, FUN=function(l) {
+pval <- if (l<=fitdf) NA else Box.test(series, lag=l, type="Ljung-Box", fitdf=fitdf)$p.value
+return(c("lag"=l,"pval"=pval))
+})
+return(t(pvals))
+}
+Qtests(arima702$residuals, 24, 9) #tests de LB pour les ordres 1 `a 24
+
+## Test différents ARMA : 
+
+#fonction de test des significativit´es individuelles des coefficients
+signif <- function(estim){
+
+coef <- estim$coef
+se <- sqrt(diag(estim$var.coef))
+t <- coef/se
+pval <- (1-pnorm(abs(t)))*2
+return(rbind(coef,se,pval))
+}
+signif(arima702) #tests de siginificativit´e de l’ARIMA(3,0,2)
+
+##fonction d’affichage des tests pour la sélection du modèle ARIMA
+arimafit <- function(estim){
+adjust <- round(signif(estim),3)
+pvals <- Qtests(estim$residuals,24,length(estim$coef)-1)
+pvals <- matrix(apply(matrix(1:24,nrow=12),2,function(c) round(pvals[c,],3)),nrow=6)
+colnames(pvals) <- rep(c("lag", "pval"),4)
+cat("tests de nullit´e des coefficients :\n")
+print(adjust)
+cat("\n tests d’absence d’autocorr´elation des r´esidus : \n")
+print(pvals)
+}
+
+estim <- arima(coredata(xm_diff),c(7,0,2)); arimafit(estim)
