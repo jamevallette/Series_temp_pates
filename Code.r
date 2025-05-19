@@ -35,6 +35,66 @@ xm_diff <- diff(xm)
 
 #### QUESTION 3 : 
 
+## Test LJUNGBOX et KPSS sur la série iniale :
+#WARNING : Test ADF valide que si les résidus sont décorrelés(LJUNGBOX valide) 
+
+#Test LJUNGBOX pour vérifier la validité du Test ADF : 
+
+#Vérification présence constante ou tendance linéaire : 
+summary(lm(coredata(xm) ~ as.numeric(index(xm))))
+
+#Constante positive et le coeff associé à la tendance linéaire(Période) est bien positif. 
+#On ne peut pas interpreter de façon sur la significativité car les résidus sont peut-être autocorrélés.
+
+# Test ADF avec constante et tendance
+adf <- adfTest(coredata(xm), lag = 0, type = "ct")
+
+# Récupération des résidus
+res <- adf@test$lm$residuals
+
+# Test de Ljung-Box sur les résidus (lags 1 à 24)
+Qtests <- function(series, k, fitdf=0) {
+  pvals <- apply(matrix(1:k), 1, FUN=function(l) {
+    pval <- if (l <= fitdf) NA else Box.test(series, lag = l, type = "Ljung-Box", fitdf = fitdf)$p.value
+    return(c("lag" = l, "pval" = pval))
+  })
+  return(t(pvals))
+}
+
+Qtests(res, k = 24, fitdf = 3)
+#Absence d'autocorrelation entre les résidus est rejetée de Q(8) à Q(24) donc on ajoute des retards pour avoir des résidus non corrélés
+
+# Fonction testant la validité de l'ADF en vérifiant la non-corrélation des résidus
+adfTest_valid <- function(series, kmax, type) { 
+  k <- 0
+  noautocorr <- 0
+  while (noautocorr == 0 && k <= kmax) {
+    cat(paste0("ADF with ", k, " lags: residuals OK? "))
+    adf <- adfTest(series, lags = k, type = type)
+    pvals <- Qtests(adf@test$lm$residuals, 24, fitdf = length(adf@test$lm$coefficients))[, 2]
+    
+    if (sum(pvals < 0.05, na.rm = TRUE) == 0) {
+      noautocorr <- 1
+      cat("OK \n")
+    } else {
+      cat("nope \n")
+      k <- k + 1
+    }
+  }
+  
+  if (k > kmax) {
+    warning("Aucun ADF avec résidus non autocorrélés trouvé jusqu'à ", kmax, " lags.")
+    return(NULL)
+  } else {
+    return(adf)
+  }
+}
+
+#Utilisation de KPSS : 
+kpss_test <- kpss.test(coredata(xm), null = "Level", lshort = TRUE)
+print(kpss_test)
+
+
 ## Ouverture d'une fenêtre à 2 graphiques
 par(mfrow = c(2, 1))  # 2 lignes, 1 colonne
 
@@ -53,7 +113,6 @@ pacf(coredata(xm_diff))
 
 #3 Tests pour savoir si la série admet des racines unitaires : 
  
-
 # ADF sans constante ni tendance
 adf_none <- ur.df(coredata(xm_diff), type = "none", selectlags = "AIC")
 summary(adf_none)
@@ -71,8 +130,13 @@ print(test_kpss)
 
 # On peut ainsi estimé un ARMA sur la série différenciée :
 #On affiche les acf et pacf pour estimer un ARMA(p,q) sur la serie differenciée qui semble stationnaire
-acf(coredata(xm_diff))
-pacf(coredata(xm_diff))
+if (!dir.exists("Images")) dir.create("Images")
+pdf("Images/acf_pacf_diff.pdf", width = 7, height = 3.5)
+par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+acf(coredata(xm_diff), main = "ACF de la série différenciée")
+pacf(coredata(xm_diff), main = "PACF de la série différenciée")
+dev.off()
+
 
 #On estime q avec le graphe des acf => on prend q=2 (les lag après sont nuls hormis 1 ou 2 qui dépasse très peu la borne)
 #On estime p avec le graphe des pacf => on peut commencer avec p = 7
@@ -86,14 +150,6 @@ Box.test(arima702$residuals, lag=12, type="Ljung-Box", fitdf=9) #test de Ljung-B
 # P-value très forte donc les residus ne sont pas autocorrélés
 
 
-#Fonction de Test d'autocorrelation des résidus pour les lag de 10 à 24 : 
-Qtests <- function(series, k, fitdf=0) {
-pvals <- apply(matrix(1:k), 1, FUN=function(l) {
-pval <- if (l<=fitdf) NA else Box.test(series, lag=l, type="Ljung-Box", fitdf=fitdf)$p.value
-return(c("lag"=l,"pval"=pval))
-})
-return(t(pvals))
-}
 #fonction de test des significativités individuelles des coefficients
 signif <- function(estim){
 
