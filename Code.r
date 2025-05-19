@@ -98,15 +98,14 @@ adfTest_valid <- function(series, kmax, type) {
 kpss_test <- kpss.test(coredata(xm), null = "Level", lshort = TRUE)
 print(kpss_test)
 
-
-## Ouverture d'une fenêtre à 2 graphiques
-par(mfrow = c(2, 1))  # 2 lignes, 1 colonne
-
-# Premier graphique : série log-transformée
-plot(xm, type = "l", col = "blue", xlab = "Date", ylab = "Indice")
-
-# Deuxième graphique : série différenciée
-plot(xm_diff, type = "l", col = "red", xlab = "Date", ylab = "Indice différencié")
+#Graphique série différenciée et non différenciée
+pdf("Images/serie_init_diff.pdf", width = 7, height = 6)
+par(mfrow = c(2, 1), mar = c(4, 4, 2, 1), cex.lab = 1.2, cex.axis = 1.1, cex.main = 1.2)
+plot(xm, type = "l", col = "blue", xlab = "Date", ylab = "Indice", ylim = c(40, 110),
+     main = "Série initiale")
+plot(xm_diff, type = "l", col = "red", xlab = "Date", ylab = "Indice différencié", ylim = c(-30, 30),
+     main = "Série différenciée")
+dev.off()
 
 #Elle semble maintenant stationnaire avec deux valeurs abérrantes liées au COVID
 
