@@ -25,8 +25,12 @@ xm_source <- zoo(data$Indice, order.by = data$Periode)
 T <-length(xm_source)
 xm <- xm_source[1:(T-4)]
 
-plot(xm, type = "l", col = "blue", xlab = "Date", ylab = "Indice")
 
+if (!dir.exists("Images")) dir.create("Images")
+pdf("Images/serie.pdf", width = 7, height = 3.5)
+par(mfrow = c(1, 1), mar = c(4, 4, 2, 1))
+plot(xm, type = "l", col = "blue", xlab = "Date", ylab = "Indice")
+dev.off()
 #### QUESTION 2 : 
 
 # On effectue une différentiation à l'ordre 1 car on remarque une tendance dans la serie
