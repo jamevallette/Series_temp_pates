@@ -172,8 +172,94 @@ Qtests(arima702$residuals, 24, 9)
 signif(arima702) #tests de siginificativite de l’ARIMA(7,0,2)
 #On remarque que le coeff MA(2) ne rejette pas l'hypothèse de nullité, le modèle est donc mal ajusté
 
-#Comme le modèle ARMA(7,2) n'est pas valide, on va chercher un ARMA(p,q) avec p=< 7 et q=<2
+#Estimation des modèles ARMA(p,q) valides avec pmax=7 et qmax=2
+for (p in 0:7) {
+  for (q in 0:2) {
+    cat("\n--- ARMA(", p, ",", q, ") ---\n")
+    model <- try(arima(coredata(xm_diff), order = c(p, 0, q)), silent = TRUE)
+    if (!inherits(model, "try-error")) {
+      assign(paste0("arma", p, q), model)
+      print(signif(model))
+    } else {
+      cat("Échec de l'estimation\n")
+    }
+  }
+}
+#Modèles bien ajustés : MA(1), MA(2), AR(1), ARMA(1,1), ARMA(3,1), AR(2), AR(3), AR(4), AR(5), ARMA(6,2), AR(7)
 
+# On teste l'absence d'autocorrelation des résidus pour ces modèles bien ajustés : 
+
+#MA(1)
+ma1 <- arima(coredata(xm_diff),c(0,0,1))
+
+Qtests(ma1$residuals, 12, 1)
+#Autocorrelations des résidus donc MA(1) non valide
+# car p-value <5% donc on rejette H0 : non autocorrelation des résidus
+
+#MA(2)
+ma2 <- arima(coredata(xm_diff),c(0,0,2))
+
+Qtests(ma2$residuals, 12, 2)
+#Non autocorrelation des résidus donc MA(2) valide
+# car pvalue > 5% donc on accepte H0 : non autocorrelation des résidus
+
+#AR(1)
+ar1 <- arima(coredata(xm_diff),c(1,0,0))
+
+Qtests(ar1$residuals, 12, 1)
+#Autocorrelations des résidus donc AR(1) non valide
+
+#AR(2)
+ar2 <- arima(coredata(xm_diff),c(2,0,0))
+
+Qtests(ar2$residuals, 12, 2)
+#Autocorrelations des résidus donc AR(2) non valide
+
+#AR(3)
+ar3 <- arima(coredata(xm_diff),c(3,0,0))
+
+Qtests(ar3$residuals, 12, 3)
+#Autocorrelations des résidus donc AR(3) non valide
+
+#AR(4)
+ar4 <- arima(coredata(xm_diff),c(4,0,0))
+
+Qtests(ar4$residuals, 12, 4)
+#Autocorrelations des résidus donc AR(4) non valide
+
+#AR(5)
+ar5 <- arima(coredata(xm_diff),c(5,0,0))
+
+Qtests(ar5$residuals, 12, 5)
+#Autocorrelations des résidus donc AR(1) non valide
+
+#AR(7)
+ar7 <- arima(coredata(xm_diff),c(7,0,0))
+
+Qtests(ar7$residuals, 12, 7)
+#Non Autocorrelation des résidus donc AR(7) valide
+
+#ARMA(1,1)
+arima101 <- arima(coredata(xm_diff),c(1,0,1))
+
+Qtests(arima101$residuals, 12, 2)
+#Non Autocorrelation des résidus donc ARMA(1,1) valide
+# car pvalue > 5% donc on accepte H0 : non autocorrelation des résidus
+
+#ARMA(3,1)
+arima301 <- arima(coredata(xm_diff),c(3,0,1))
+
+Qtests(arima301$residuals, 12, 4)
+#Autocorrelation des résidus à partir de Q(4) donc ARMA(3,1) non valide
+# pvalue < 5% à partir de Q(4) donc on rejette l'hypothèse d'abscence d'autocorrelation des résidus 
+
+#ARMA(6,2)
+arima602 <- arima(coredata(xm_diff),c(6,0,2))
+
+Qtests(arima602$residuals, 12, 8)
+#Autocorrelation des résidus donc ARMA(6,2) non valide
+
+#On recherche donc le meilleur modèle ARMA en minimisant le critère AIC et BIC: 
 pmax=7
 qmax=2
 
@@ -197,15 +283,7 @@ AICs==min(AICs)
 
 BICs
 BICs == min(BICs)
-# l'ARMA(1,1) sur la série corrigée est donc le modèle qui minimise les critères BIC et AIC
-#On estime donc le modèle ARMA(1,1) sur la série corrigée: 
-arima101 <- arima(coredata(xm_diff),c(1,0,1))
-
-Qtests(arima101$residuals, 24, 2)
-# On accepte bien H0  qui est la non autocorrélation des résidus
-
-signif(arima101) #tests de siginificativite de l’ARIMA(1,0,1)
-#On rejette l'hypothèse de nullité pour AR(1) et MA(1) donc le modèle est correctement ajusté
+# l'ARMA(1,1) sur la série corrigée est donc le modèle valide qui minimise les critères BIC et AIC
 
 #Calcul du R² ajusté de ce modèle : 
 adj_r2 <- function(model, data){
@@ -234,29 +312,6 @@ adj_r2(arima101, coredata(xm_diff))
 dev.off() #réinitialise les paramétres graphiques
 plot(arima101$residuals)
 
-#On va essayer les modèles ARMA(2,1), ARMA(1,2) pour s'assurer qu'on aurait pas un modèle plus complexe et détailler qui fonctionnerait  
-
-# 1 - ARMA(2,1)
-arima201 <- arima(coredata(xm_diff),c(2,0,1))
-
-Qtests(arima201$residuals, 24, 3)
-# On accepte bien H0  qui est la non autocorrélation des résidus
-
-signif(arima201) #tests de siginificativite de l’ARIMA(2,0,1)
-#On ne rejette pas l'hypothèse de nullité pour AR(2) donc le modèle n'est pas correctement ajusté
-
-
-# 2 - ARMA(1,2)
-
-arima102 <- arima(coredata(xm_diff),c(1,0,2))
-
-Qtests(arima102$residuals, 24, 3)
-# On accepte bien H0  qui est la non autocorrélation des résidus
-
-signif(arima102) #tests de siginificativite de l’ARIMA(1,0,2)
-#On ne rejette pas l'hypothèse de nullité pour MA(2) donc le modèle n'est pas correctement ajusté
-
-### On conserve donc le modèle ARMA(1,1) sur la série différenciée
 ### Cela revient à faire un modèle ARIMA(1,1,1) sur la série initiale
 
 # Rechargement de la série source
